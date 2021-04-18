@@ -1,0 +1,138 @@
+<?php
+/*
+Plugin Name: Change login error plugin
+Description: Change the error messages on login form to not display a valid username or email
+Wordpress Version: 5.7.1
+Version: 0.1
+Author: Teddy
+*/
+
+//add new filter
+remove_filter( 'authenticate', 'wp_authenticate_username_password' );
+add_filter('authenticate', 'custom_authenticate_username_password', 30, 3);
+
+//copied from WP 5.7.1 core files
+function custom_authenticate_username_password( $user, $username, $password ) {
+	if ( $user instanceof WP_User ) {
+		return $user;
+	}
+
+	if ( empty( $username ) || empty( $password ) ) {
+		if ( is_wp_error( $user ) ) {
+			return $user;
+		}
+
+		$error = new WP_Error();
+
+		if ( empty( $username ) ) {
+			$error->add( 'empty_username', __( '<strong>Error</strong>: The username field is empty.' ) );
+		}
+
+		if ( empty( $password ) ) {
+			$error->add( 'empty_password', __( '<strong>Error</strong>: The password field is empty.' ) );
+		}
+
+		return $error;
+	}
+
+	$user = get_user_by( 'login', $username );
+
+	if ( ! $user ) {
+		return new WP_Error(
+			'invalid_username',
+			__( '<strong>Error</strong>: Invalid Credentials.' )
+		);
+	}
+
+	/**
+	 * Filters whether the given user can be authenticated with the provided $password.
+	 *
+	 * @since 2.5.0
+	 *
+	 * @param WP_User|WP_Error $user     WP_User or WP_Error object if a previous
+	 *                                   callback failed authentication.
+	 * @param string           $password Password to check against the user.
+	 */
+	$user = apply_filters( 'wp_authenticate_user', $user, $password );
+	if ( is_wp_error( $user ) ) {
+		return $user;
+	}
+
+	if ( ! wp_check_password( $password, $user->user_pass, $user->ID ) ) {
+		return new WP_Error(
+			'incorrect_password',
+				__( '<strong>Error</strong>: Invalid Credentials.' )
+		);
+	}
+
+	return $user;
+}
+
+remove_filter( 'authenticate', 'wp_authenticate_email_password' );
+add_filter( 'authenticate', 'custom_authenticate_email_password', 31, 3 );
+//copied from WP 5.7.1 core files
+
+/**
+ * Authenticates a user using the email and password.
+ *
+ * @since 4.5.0
+ *
+ * @param WP_User|WP_Error|null $user     WP_User or WP_Error object if a previous
+ *                                        callback failed authentication.
+ * @param string                $email    Email address for authentication.
+ * @param string                $password Password for authentication.
+ * @return WP_User|WP_Error WP_User on success, WP_Error on failure.
+ */
+function custom_authenticate_email_password( $user, $email, $password ) {
+	if ( $user instanceof WP_User ) {
+		return $user;
+	}
+
+	if ( empty( $email ) || empty( $password ) ) {
+		if ( is_wp_error( $user ) ) {
+			return $user;
+		}
+
+		$error = new WP_Error();
+
+		if ( empty( $email ) ) {
+			// Uses 'empty_username' for back-compat with wp_signon().
+			$error->add( 'empty_username', __( '<strong>Error</strong>: The email field is empty.' ) );
+		}
+
+		if ( empty( $password ) ) {
+			$error->add( 'empty_password', __( '<strong>Error</strong>: The password field is empty.' ) );
+		}
+
+		return $error;
+	}
+
+	if ( ! is_email( $email ) ) {
+		return $user;
+	}
+
+	$user = get_user_by( 'email', $email );
+
+	if ( ! $user ) {
+		return new WP_Error(
+			'invalid_email',
+			__( '<strong>Error</strong>: Invalid Credentials.' )
+		);
+	}
+
+	/** This filter is documented in wp-includes/user.php */
+	$user = apply_filters( 'wp_authenticate_user', $user, $password );
+
+	if ( is_wp_error( $user ) ) {
+		return $user;
+	}
+
+	if ( ! wp_check_password( $password, $user->user_pass, $user->ID ) ) {
+		return new WP_Error(
+			'incorrect_password',
+				__( '<strong>Error</strong>: Invalid Credentials.' )
+		);
+	}
+
+	return $user;
+}
